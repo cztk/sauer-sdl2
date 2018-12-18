@@ -861,11 +861,11 @@ void screenres(int w, int h)
 ICOMMAND(screenres, "ii", (int *w, int *h), screenres(*w, *h));
 
 static int curgamma = 100;
-VARFP(gamma, 30, 100, 300,
+VARFP(reqgamma, 30, 100, 300,
 {
-    if(gamma == curgamma) return;
-    curgamma = gamma;
-    if(SDL_SetWindowBrightness(screen, gamma/100.0f)==-1) conoutf(CON_ERROR, "Could not set gamma: %s", SDL_GetError());
+    if(reqgamma == curgamma) return;
+    curgamma = reqgamma;
+    if(SDL_SetWindowBrightness(screen, curgamma/100.0f)==-1) conoutf(CON_ERROR, "Could not set gamma: %s", SDL_GetError());
 });
 
 void restoregamma()
