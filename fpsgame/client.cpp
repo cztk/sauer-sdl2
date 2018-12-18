@@ -29,6 +29,7 @@ namespace game
     extern int newhud_itemspos_reverse_x;
     extern int newhud_itemsdisablewithgui;
     extern int newhud_itemspos_centerfirst;
+    uint server_zucker_proto = 0;
 
     ENetSocket extinfosock = ENET_SOCKET_NULL;
 
@@ -1659,6 +1660,69 @@ namespace game
         messages.put(buf, p.length());
     }
 
+    void sendzuckermsg(int type, int chan, const char *fmt, ...)
+    {
+        if(!connected) return;
+        int numi = 1, numf = 0, nums = 0, mcn = -1;
+        bool reliable = false;
+
+        if(*fmt=='r') { reliable = true; ++fmt; }
+        packetbuf p(MAXTRANS, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
+
+        putint(p, type);
+        if(fmt)
+        {
+            va_list args;
+            va_start(args, fmt);
+            while(*fmt) switch(*fmt++)
+            {
+                case 'r': reliable = true; break;
+                case 'c':
+                {
+                    fpsent *d = va_arg(args, fpsent *);
+                    mcn = !d || d == player1 ? -1 : d->clientnum;
+                    break;
+                }
+                case 'v':
+                { 
+                    int n = va_arg(args, int);
+                    int *v = va_arg(args, int *);
+                    loopi(n) putint(p, v[i]);
+                    numi += n;
+                    break;
+                }
+
+                case 'i':
+                {   
+                    int n = isdigit(*fmt) ? *fmt++-'0' : 1;
+                    loopi(n) putint(p, va_arg(args, int));
+                    numi += n;
+                    break;
+                }
+                case 'f':
+                {   
+                    int n = isdigit(*fmt) ? *fmt++-'0' : 1;
+                    loopi(n) putfloat(p, (float)va_arg(args, double));
+                    numf += n;
+                    break;
+                }
+                case 's': sendstring(va_arg(args, const char *), p); nums++; break;
+            }
+            va_end(args);
+        }
+// TODO: think about it
+//        if(mcn != messagecn)
+//        {
+//            static uchar mbuf[16];
+//            ucharbuf m(mbuf, sizeof(mbuf));
+//            putint(m, N_FROMAI);
+//            putint(m, mcn);
+//            messages.put(mbuf, m.length());
+//            messagecn = mcn;
+//        }
+        sendclientpacket(p.finalize(), chan);
+    }
+
     void connectattempt(const char *name, const char *password, const ENetAddress &address)
     {
         copystring(connectpass, password);
@@ -2159,6 +2223,22 @@ namespace game
             awaitingdemolist = 0;
             awaitingdemo = 0;
         }
+    }
+
+    void parsezucker(int cn, fpsent *d, ucharbuf &p)
+    {
+        static char text[MAXTRANS];
+        int type;
+        while(p.remaining())
+            switch(type = getint(p))
+            {
+                case Z_IDENT:
+                    uint version = (uint)getint(p);
+                    conoutf(CON_DEBUG, "Server supports zucker protocol version %d", version);
+                    server_zucker_proto = version;
+                    sendzuckermsg(Z_IDENT, 3, "ri", ZUCKER_PROTOCOL_VERSION);
+                break;
+            }
     }
 
     void parsemessages(int cn, fpsent *d, ucharbuf &p)
@@ -2955,6 +3035,11 @@ namespace game
 
             case 2:
                 receivefile(p);
+                break;
+
+            case 3:
+                conoutf("parse packet on chan 3");
+                parsezucker(-1, NULL, p);
                 break;
         }
     }
