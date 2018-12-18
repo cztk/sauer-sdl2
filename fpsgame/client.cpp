@@ -3038,7 +3038,6 @@ namespace game
                 break;
 
             case 3:
-                conoutf("parse packet on chan 3");
                 parsezucker(-1, NULL, p);
                 break;
         }
